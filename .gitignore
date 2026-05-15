@@ -1,0 +1,8 @@
+*.pth
+*.pt
+*.pth
+__pycache__/
+*.pyc
+*.pyo
+model_zoo_backup.json
+.env.yaml

@@ -21,9 +21,13 @@ from typing import Annotated, List, Optional, Union
 
 from functions.create_hf_dataset import prepare_dataset, get_dataset_format
 from functions.instance_segmentation import finetune_instance_segmentation, infer_instance_segmentation
-from functions.image_classification import finetune_image_classification, infer_image_classification
+from functions.image_classification import finetune_image_classification, infer_image_classification, infer_image_classification_dinov2
 from functions.image_regression import finetune_image_regression, infer_image_regression
 from functions.search import search_and_scrape
+from functions.multimodal_models import (
+    infer_yolo_object_detection,
+    infer_temporal_crop_model,
+)
 from functions.compute_phenotypes import compute_phenotypes_from_ins_seg
 from functions.reproducible_pipeline import save_pipeline, load_chat_log, get_pipeline_zoo, get_pipeline_info, execute_pipeline
 from functions.stat_test import perform_anova, perform_tukey_test
@@ -463,6 +467,13 @@ register_function(
     name="infer_image_regression",
     description="Perform image regression on plant images",
 )
+register_function(
+    infer_image_classification_dinov2,
+    caller=manager,
+    executor=user_proxy,
+    name="infer_image_classification_dinov2",
+    description="Perform nutrient deficiency classification using DINOv2 ViT-S/14 full fine-tuned models contributed by Narendren S V (IIT Bombay). IMPORTANT - image requirements differ per crop: rice requires close-up RGB leaf images (4-class nitrogen deficiency severity: mild/moderate/severe/very_severe); wheat requires UAV top-down aerial field images ONLY and NOT close-up leaf images (5-class: healthy/nitrogen/phosphorus/potassium/severe deficiency); maize requires close-up RGB leaf or plant images (6-class: healthy/nitrogen/phosphorus/potassium/zinc/severe deficiency). Checkpoint format: Naren1704/{crop}_nutrient-deficiency_rgbdataset_dinov2_fullft",
+)
 
 register_function(
     compute_phenotypes_from_ins_seg,
@@ -582,3 +593,51 @@ print("PhenoAssistant's available tools:")
 for i, tool in enumerate(manager.llm_config["tools"]):
     print(f"Tool {i+1}: Name: {tool['function']['name']}, Description: {tool['function']['description']}")
 ## adding new tools ends
+
+# ── Contribution 2: Model Selector Agent ─────────────────────────────────────
+from utils.model_selector import select_model as _select_model
+
+def get_best_model(user_query: str) -> str:
+    """
+    Select the single best vision model for a plant phenotyping task.
+    Uses a 3-question decision tree instead of showing all models at once.
+    Returns the exact model ID to pass to infer_* functions.
+    """
+    from openai import AzureOpenAI
+    client = AzureOpenAI(
+        api_key=os.environ["OPENAI_API_KEY"],
+        azure_endpoint=os.environ["AZURE_API_URL"],
+        api_version=os.environ["AZURE_API_VERSION"],
+    )
+    return _select_model(user_query, client, os.environ["MODEL_NAME"])
+
+register_function(
+    get_best_model,
+    caller=manager,
+    executor=user_proxy,
+    name="get_best_model",
+    description=(
+        "Select the single best vision model checkpoint for a plant phenotyping task. "
+        "Use this instead of get_model_zoo when the user wants to run inference. "
+        "Returns the exact model ID to pass to infer_instance_segmentation, "
+        "infer_image_classification, or infer_image_regression."
+    ),
+)
+
+print("[Contribution 2] get_best_model registered successfully.")
+
+
+# ── Contribution 2: Tool Selector Agent ──────────────────────────────────────
+from utils.tool_selector import ToolSelectorIndex
+
+tool_index = ToolSelectorIndex(manager, model_name="all-mpnet-base-v2")
+
+def start_task(user_message: str, k: int = 7, **kwargs):
+    """
+    Use this instead of user_proxy.initiate_chat() in notebooks.
+    Filters the tool list to top-k before the manager sees it.
+    """
+    with tool_index.patch_manager(user_message, k=k):
+        return user_proxy.initiate_chat(manager, message=user_message, **kwargs)
+
+print("[Contribution 2] ToolSelectorIndex ready. Use start_task() in notebooks.")

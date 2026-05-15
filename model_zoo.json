@@ -1,1 +1,90 @@
-{"instance-segmentation": ["fengchen025/arabidopsis_leaf-instance-segmentation_cvppp2017-a1a4_m2fb_fullft", "potato_leaf-instance-segmentation_leaf-only-sam"], "image-classification": ["fengchen025/winter-wheat_nutri-defi-identify_dndww20_dino2b_lora"], "image-regression": []}
+{
+  "instance-segmentation": [
+    {
+      "id": "fengchen025/arabidopsis_leaf-instance-segmentation_cvppp2017-a1a4_m2fb_fullft",
+      "crop": "arabidopsis",
+      "task": "segmentation",
+      "modality": "close_range_rgb",
+      "description": "Segments individual Arabidopsis leaves using instance segmentation. Use for rosette leaf counting and area measurement from close-range RGB images."
+    },
+    {
+      "id": "potato_leaf-instance-segmentation_leaf-only-sam",
+      "crop": "potato",
+      "task": "segmentation",
+      "modality": "close_range_rgb",
+      "description": "Segments potato leaves using Leaf-only SAM. Use for potato leaf instance segmentation from close-range RGB images."
+    }
+  ],
+  "image-classification": [
+    {
+      "id": "fengchen025/winter-wheat_nutri-defi-identify_dndww20_dino2b_lora",
+      "crop": "wheat",
+      "task": "nutrient_deficiency",
+      "modality": "uav_aerial",
+      "description": "Classifies winter wheat canopy for nutrient deficiency from UAV aerial images using DINOv2 with LoRA. Trained on CVPPA 2023 Dikopshof LTFE dataset. Superseded by Naren1704 full fine-tune model for general use.",
+      "dataset": "dikopshof_ltfe_2020"
+    },
+    {
+      "id": "Naren1704/rice_nutrient-deficiency_rgbdataset_dinov2_fullft",
+      "crop": "rice",
+      "task": "nutrient_deficiency",
+      "modality": "close_range_rgb",
+      "description": "Classifies rice leaves for nitrogen deficiency severity \u2014 mild, moderate, severe, very severe. Use for close-range RGB rice leaf images."
+    },
+    {
+      "id": "Naren1704/wheat_nutrient-deficiency_rgbdataset_dinov2_fullft",
+      "crop": "wheat",
+      "task": "nutrient_deficiency",
+      "modality": "uav_aerial",
+      "description": "Classifies wheat canopy for nutrient deficiency from UAV aerial drone images. Use for field-scale wheat UAV imagery, not close-range leaf images.",
+      "dataset": "custom_uav_dataset"
+    },
+    {
+      "id": "Naren1704/maize_nutrient-deficiency_rgbdataset_dinov2_fullft",
+      "crop": "maize",
+      "task": "nutrient_deficiency",
+      "modality": "close_range_rgb",
+      "description": "Classifies maize (corn) leaves for multiple nutrient deficiency types. Use for close-range RGB maize leaf images."
+    },
+    {
+      "id": "Naren1704/banana_nutrient-deficiency_rgbdataset_dinov2_fullft",
+      "crop": "banana",
+      "task": "nutrient_deficiency",
+      "modality": "close_range_rgb",
+      "description": "Classifies banana leaves for micronutrient deficiency including zinc, calcium, magnesium. Use for close-range RGB banana leaf images."
+    },
+    {
+      "id": "Naren1704/coffee_nutrient-deficiency_rgbdataset_dinov2_fullft",
+      "crop": "coffee",
+      "task": "nutrient_deficiency",
+      "modality": "close_range_rgb",
+      "description": "Classifies coffee leaves for multiple micronutrient deficiency types. Use for close-range RGB coffee leaf images."
+    }
+  ],
+  "object-detection": [
+    {
+      "id": "Naren1704/rice_panicle-detection_bangladesh_yolov8m_fullft",
+      "crop": "rice",
+      "task": "detection_counting",
+      "modality": "uav_aerial",
+      "description": "Detects and counts rice panicles from UAV aerial images. Use for rice yield estimation and reproductive organ counting from drone imagery."
+    },
+    {
+      "id": "Naren1704/wheat_spike-detection_gwhd_yolov8m_fullft",
+      "crop": "wheat",
+      "task": "detection_counting",
+      "modality": "close_range_rgb",
+      "description": "Detects and counts wheat spikes and heads from field images. Use for wheat yield estimation and spike counting from close-range or field RGB images."
+    }
+  ],
+  "temporal-analysis": [
+    {
+      "id": "Naren1704/sentinel2_crop-mapping_lombardia_bilstm_multitask",
+      "crop": "multi_crop",
+      "task": "temporal_phenotyping",
+      "modality": "satellite",
+      "description": "Analyses Sentinel-2 satellite image time series for crop type classification, growth rate prediction, and harvest timing estimation across 21 crop types."
+    }
+  ],
+  "image-regression": []
+}

@@ -436,3 +436,151 @@ if __name__ == "__main__":
                                   lr = 1e-4,
                                   epochs = 100,
                                   )
+
+# ============================================================
+# CUSTOM DINOv2 FULL FINE-TUNE INFERENCE
+# Contributor: Narendran (IIT Bombay, Dr. Soumyashree Kar)
+# Models: Rice / Wheat / Maize nutrient deficiency classifiers
+# ============================================================
+
+
+
+# ============================================================
+# CUSTOM DINOv2 FULL FINE-TUNE INFERENCE
+# Contributor: Narendren S V (IIT Bombay, Dr. Soumyashree Kar)
+# Models: Rice / Wheat / Maize nutrient deficiency classifiers
+# ============================================================
+
+class DINOClassifier(torch.nn.Module):
+    """
+    DINOv2 ViT-S/14 backbone with linear classification head.
+    Used for full fine-tune nutrient deficiency classification.
+    """
+    def __init__(self, num_classes: int):
+        super().__init__()
+        self.backbone = torch.hub.load(
+            "facebookresearch/dinov2", "dinov2_vits14", verbose=False
+        )
+        self.classifier = torch.nn.Linear(
+            self.backbone.embed_dim, num_classes
+        )
+
+    def forward(self, x):
+        return self.classifier(self.backbone(x))
+
+
+def infer_image_classification_dinov2(
+        image_urls: Annotated[Optional[List[str]], "List of image paths"] = None,
+        file_path: Annotated[Optional[str], "Path to CSV/JSON file with a 'file_name' column/key containing image URLs"] = None,
+        checkpoint: Annotated[str, "HuggingFace repo id for DINOv2 fullft classifier (e.g. Naren1704/rice_nutrient-deficiency_rgbdataset_dinov2_fullft)."] = None,
+        batch_size: Annotated[int, "Number of images to process per batch."] = 16,
+        device: Annotated[str, "Device to use for inference ('cuda' or 'cpu')."] = "cpu",
+        output_dir: Annotated[str, "Directory path to save results."] = "./results") -> str:
+    """
+    Perform nutrient deficiency classification using DINOv2 ViT-S/14
+    full fine-tuned models for rice (4-class), wheat (5-class),
+    and maize (6-class) datasets.
+
+    Contributed by Narendren S V (IIT Bombay internship,
+    Dr. Soumyashree Kar) as part of PhenoAssistant vision model zoo.
+
+    Please provide either image_urls or file_path as input.
+
+    Returns:
+    - str: Path to a CSV file containing classification results.
+    """
+    if (image_urls and file_path) or (not image_urls and not file_path):
+        return "Error: Provide either 'image_urls' or 'file_path', not both."
+
+    if file_path:
+        if file_path.endswith(".csv"):
+            df = pd.read_csv(file_path)
+            if 'file_name' not in df.columns:
+                return "Error: CSV file must contain a 'file_name' column."
+            image_urls = df['file_name'].tolist()
+        elif file_path.endswith(".json"):
+            with open(file_path, 'r') as f:
+                data = json.load(f)
+            if 'file_name' not in data:
+                return "Error: JSON file must contain a 'file_name' key."
+            image_urls = data['file_name']
+        else:
+            return "Error: Unsupported file format. Use CSV or JSON."
+
+    if not image_urls:
+        return "Error: No image URLs found."
+
+    try:
+        config_path = hf_hub_download(repo_id=checkpoint, filename="config.json")
+        with open(config_path, "r") as f:
+            config = json.load(f)
+    except Exception as e:
+        return f"Error loading config from {checkpoint}: {str(e)}"
+
+    label2id    = config["label2id"]
+    id2label    = {int(k): v for k, v in config["id2label"].items()}
+    num_classes = config["num_classes"]
+
+    model_filename = checkpoint.split("/")[-1] + ".pth"
+    try:
+        weights_path = hf_hub_download(
+            repo_id=checkpoint, filename=model_filename
+        )
+    except Exception as e:
+        return f"Error loading weights from {checkpoint}: {str(e)}"
+
+    model = DINOClassifier(num_classes=num_classes)
+    state_dict = torch.load(weights_path, map_location=device)
+    model.load_state_dict(state_dict)
+    model.to(device)
+    model.eval()
+
+    val_tf = T.Compose([
+        T.Resize((224, 224)),
+        T.ToTensor(),
+        T.Normalize(
+            mean=[0.485, 0.456, 0.406],
+            std=[0.229, 0.224, 0.225]
+        ),
+    ])
+
+    os.makedirs(output_dir, exist_ok=True)
+    save_path = os.path.join(output_dir, "img_classification_results.csv")
+
+    class_id_list    = []
+    class_label_list = []
+    class_score_list = []
+
+    for i in range(0, len(image_urls), batch_size):
+        batch_urls    = image_urls[i:i + batch_size]
+        raw_images    = load_images(batch_urls)
+        batch_tensors = torch.stack(
+            [val_tf(img) for img in raw_images]
+        ).to(device)
+
+        with torch.no_grad():
+            logits = model(batch_tensors)
+
+        probs = F.softmax(logits, dim=-1)
+        scores, indices = probs.max(dim=-1)
+
+        class_id_list.extend(indices.cpu().tolist())
+        class_score_list.extend(scores.cpu().tolist())
+        class_label_list.extend(
+            [id2label[idx] for idx in indices.cpu().tolist()]
+        )
+
+    result_df = pd.DataFrame({
+        "file_name":    image_urls,
+        "class_ids":    class_id_list,
+        "class_labels": class_label_list,
+        "class_scores": class_score_list,
+    })
+    result_df.to_csv(save_path, index=False)
+
+    return (
+        f"Nutrient deficiency classification complete.\n"
+        f"Model: {checkpoint}\n"
+        f"Images processed: {len(image_urls)}\n"
+        f"Results saved at: {save_path}"
+    )
