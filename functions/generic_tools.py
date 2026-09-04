@@ -1,3 +1,25 @@
+# --- Security Hardening: SSRF Guard (RFC 1918 & Cloud Metadata) ---
+import socket
+import ipaddress
+from urllib.parse import urlparse
+
+def is_safe_url(target_url: str) -> bool:
+    """Validates that target_url resolves strictly to public, routable IP addresses."""
+    try:
+        parsed = urlparse(target_url)
+        hostname = parsed.hostname
+        if not hostname:
+            return False
+        addr_info = socket.getaddrinfo(hostname, None)
+        for entry in addr_info:
+            ip = ipaddress.ip_address(entry[4][0])
+            if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved or not ip.is_global:
+                return False
+        return True
+    except Exception:
+        return False
+# ------------------------------------------------------------------
+
 import os
 import sys
 import base64
@@ -75,6 +97,8 @@ def handle_grayscale_image(image):
         return Image.fromarray(np_image)
 
 def download_hffile(url, headers):
+    if not is_safe_url(url):
+        raise ValueError(f"SSRF Protection: Refusing to fetch restricted or private IP address for URL: {url}")
     response = requests.get(url, headers=headers)
     if response.status_code == 200:
         return response.json()  # Load JSON into memory
